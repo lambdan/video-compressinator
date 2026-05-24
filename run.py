@@ -26,6 +26,7 @@ VIDEO_SCALE = os.getenv("VIDEO_SCALE", None)
 X_PRESET = os.getenv("X_PRESET", "slow")
 INPUT_VIDEO_EXTS = os.getenv("INPUT_VIDEO_EXTS", "mp4,mkv,avi,mov,flv,webm").split(",")
 OUTPUT_VIDEO_EXT = os.getenv("OUTPUT_VIDEO_EXT", "mkv").lstrip(".")
+DELETE_ORIGINAL_AFTER_DAYS = float(os.getenv("DELETE_ORIGINAL_AFTER_DAYS", "7"))
 
 
 print("Using settings:")
@@ -44,6 +45,7 @@ print(f"  VIDEO_SCALE: {VIDEO_SCALE}")
 print(f"  X_PRESET: {X_PRESET}")
 print(f"  INPUT_VIDEO_EXTS: {INPUT_VIDEO_EXTS}")
 print(f"  OUTPUT_VIDEO_EXT: {OUTPUT_VIDEO_EXT}")
+print(f"  DELETE_ORIGINAL_AFTER_DAYS: {DELETE_ORIGINAL_AFTER_DAYS}")
 print()
 
 PROBES_FILE = os.path.join(DATA_DIR, "probes.json")
@@ -403,6 +405,27 @@ def add_encoding_time(time_seconds):
     save_stats()
 
 
+def maybe_cleanup(source_path, dest_path) -> str:
+    if DELETE_ORIGINAL_AFTER_DAYS <= 0:
+        # if the setting is 0 or negative, we never delete original files
+        return "nope, deleting original is disabled"
+
+    if not os.path.exists(source_path) or not os.path.exists(dest_path):
+        print("Source or destination file does not exist, avoiding cleanup")
+        return "nope, source or destination file missing"
+
+    # if destination file has existed for n days, we assume the user is happy with it
+    dest_age_days = (
+        datetime.datetime.now()
+        - datetime.datetime.fromtimestamp(os.path.getmtime(dest_path))
+    ).total_seconds() / (3600 * 24)
+    if dest_age_days >= DELETE_ORIGINAL_AFTER_DAYS:
+        os.remove(source_path)
+        return f"yep! The new version is {dest_age_days:.2f} days old. Deleted the original 🗑️"
+    else:
+        return f"nope, the new version is only {dest_age_days:.2f} days old"
+
+
 ITERATIONS = 0
 STARTED_AT = datetime.datetime.now()
 
@@ -431,22 +454,28 @@ def iteration():
         save_probes()
 
     for source_path in tqdm(paths, desc="Processing videos"):
+        print_line(f"Processing {source_path}...")
+
         if source_path in BLACKLIST:
-            print(
-                f"Skipping {source_path} because it's blacklisted: {BLACKLIST[source_path]}"
-            )
+            print(f"Skipped because it's blacklisted: {BLACKLIST[source_path]}")
             continue
 
         dest_path = build_dest_path(source_path)
+        print(f"Destination would be:\n  {dest_path}")
         if os.path.exists(dest_path):
+            print("Destination already exists")
             print(
-                f"Skipping {source_path} because destination file already exists at {dest_path}"
+                "Can we delete the original?\n  "
+                + maybe_cleanup(source_path, dest_path),
             )
+            print("Skipped because destination exists")
             continue
 
         info = build_info(PROBES[source_path])
+        print(json.dumps(info, indent=4))
+
         if should_encode(info):
-            print_line(f"Encoding {source_path}...")
+            print("This video should be encoded!")
             output = encode(source_path, info)
             if output:
                 print("Encode was successful!")
@@ -471,6 +500,9 @@ def iteration():
             else:
                 print(f"Failed to encode {source_path}")
                 add_to_blacklist(source_path, "encoding failed")
+        else:
+            # this also triggers on our own encodes...
+            print("Skipped (this video does not need encoding)")
 
     msg = f"Iteration {ITERATIONS} complete!\n\n"
     msg += f"Uptime: {(datetime.datetime.now() - STARTED_AT).total_seconds() / 3600:.2f} hours\n\n"
