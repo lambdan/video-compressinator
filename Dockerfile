@@ -16,4 +16,6 @@ ENV DATA_DIR=/data
 ENV MEDIA_DIR=/media
 ENV TEMP_DIR=/tmp
 
+ENV PYTHONUNBUFFERED=1
+
 ENTRYPOINT ["python", "run.py"]
