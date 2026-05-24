@@ -9,7 +9,7 @@ from tqdm import tqdm
 
 DATA_DIR = os.getenv("DATA_DIR", "./data")
 MEDIA_DIR = os.getenv("MEDIA_DIR", "./media")
-TEMP_DIR = os.getenv("TEMP_DIR", DATA_DIR + "/temp")
+TEMP_DIR = os.getenv("TEMP_DIR", "./temp")
 
 ITERATION_INTERVAL_SECONDS = int(os.getenv("ITERATION_INTERVAL_SECONDS", "3600"))
 
@@ -41,6 +41,7 @@ print(f"  CRF: {CRF}")
 print(f"  VIDEO_SCALE: {VIDEO_SCALE}")
 print(f"  X_PRESET: {X_PRESET}")
 print(f"  VIDEO_EXTS: {VIDEO_EXTS}")
+print()
 
 PROBES_FILE = os.path.join(DATA_DIR, "probes.json")
 STATS_FILE = os.path.join(DATA_DIR, "stats.json")
@@ -56,15 +57,48 @@ STATUS_SKIPPED = "skipped"
 STATUS_ENCODED = "encoded"
 STATUS_ERROR = "error"
 
+FFMPEG_PATH = os.getenv("FFMPEG_PATH", shutil.which("ffmpeg")) or ""
+FFPROBE_PATH = os.getenv("FFPROBE_PATH", shutil.which("ffprobe")) or ""
+
 
 # check for ffprobe and ffmpeg
 def check_ffmpeg():
-    if not shutil.which("ffmpeg"):
+    if FFMPEG_PATH:
+        print(f"Using ffmpeg at {FFMPEG_PATH}")
+        ffmpeg_version = subprocess.run(
+            [FFMPEG_PATH, "-version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        if ffmpeg_version.returncode == 0:
+            print("Checking version...")
+            print(ffmpeg_version.stdout.decode().splitlines()[0])
+        else:
+            print(f"Error checking ffmpeg version: {ffmpeg_version.stderr.decode()}")
+            sys.exit(1)
+    else:
         print("ffmpeg is not installed")
         sys.exit(1)
-    if not shutil.which("ffprobe"):
+
+    print("ffmpeg seems ok!")
+    print()
+
+    if FFPROBE_PATH:
+        print(f"Using ffprobe at {FFPROBE_PATH}")
+
+        ffprobe_version = subprocess.run(
+            [FFPROBE_PATH, "-version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        if ffprobe_version.returncode == 0:
+            print("Checking version...")
+            print(ffprobe_version.stdout.decode().splitlines()[0])
+        else:
+            print(f"Error checking ffprobe version: {ffprobe_version.stderr.decode()}")
+            sys.exit(1)
+    else:
         print("ffprobe is not installed")
         sys.exit(1)
+
+    print("ffprobe seems ok!")
+    print()
 
 
 def load_data():
@@ -120,7 +154,7 @@ def probe(video_path: str):
         # ffprobe json output: ffprobe -v quiet -print_format json -show_format -show_streams
         result = subprocess.run(
             [
-                "ffprobe",
+                FFPROBE_PATH,
                 "-v",
                 "quiet",
                 "-print_format",
@@ -211,7 +245,7 @@ def get_subtitle_info(ffprobe_data):
 
 def build_ffmpeg_command(input_path, output_path, info) -> list[str]:
 
-    cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error"]
+    cmd = [FFMPEG_PATH, "-y", "-hide_banner", "-loglevel", "error"]
     cmd += ["-i", input_path]
 
     # video
@@ -444,7 +478,7 @@ def iteration():
 if __name__ == "__main__":
     check_ffmpeg()
     load_data()
-    print(STATS)
+    print("Stats", STATS)
     print(f"Blacklist count: {len(BLACKLIST)}")
     # create temp, data, and media directories if they don't exist
     os.makedirs(TEMP_DIR, exist_ok=True)
