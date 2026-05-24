@@ -12,7 +12,6 @@ MEDIA_DIR = os.getenv("MEDIA_DIR", "./media")
 TEMP_DIR = os.getenv("TEMP_DIR", "./temp")
 
 ITERATION_INTERVAL_SECONDS = int(os.getenv("ITERATION_INTERVAL_SECONDS", "3600"))
-
 PASSTHROUGH_VIDEO_CODECS = os.getenv("PASSTHROUGH_VIDEO_CODECS", "hevc,av1").split(",")
 PASSTHROUGH_AUDIO_CODECS = os.getenv(
     "PASSTHROUGH_AUDIO_CODECS", "aac,mp3,opus,vorbis"
@@ -64,6 +63,18 @@ STATUS_ERROR = "error"
 
 FFMPEG_PATH = os.getenv("FFMPEG_PATH", shutil.which("ffmpeg")) or ""
 FFPROBE_PATH = os.getenv("FFPROBE_PATH", shutil.which("ffprobe")) or ""
+
+
+def test_write_permission(folder):
+    test_file = os.path.join(folder, "test_write_permission.tmp")
+    try:
+        with open(test_file, "w") as f:
+            f.write("test")
+        os.remove(test_file)
+        print(f"Write permission to '{folder}' is OK")
+    except Exception as e:
+        print(f"Error: No write permission to '{folder}': {e}")
+        sys.exit(1)
 
 
 # check for ffprobe and ffmpeg
@@ -511,6 +522,9 @@ def iteration():
 
 
 if __name__ == "__main__":
+    test_write_permission(DATA_DIR)
+    test_write_permission(MEDIA_DIR)
+    test_write_permission(TEMP_DIR)
     check_ffmpeg()
     load_data()
     print("Stats", STATS)
