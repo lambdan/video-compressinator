@@ -14,9 +14,9 @@ TEMP_DIR = os.getenv("TEMP_DIR", "./temp")
 ITERATION_INTERVAL_SECONDS = int(os.getenv("ITERATION_INTERVAL_SECONDS", "3600"))
 
 PASSTHROUGH_VIDEO_CODECS = os.getenv("PASSTHROUGH_VIDEO_CODECS", "hevc,av1").split(",")
-PASSTHROUGH_AUDIO_CODECS = os.getenv("PASSTHROUGH_AUDIO_CODECS", "aac,opus,mp3").split(
-    ","
-)
+PASSTHROUGH_AUDIO_CODECS = os.getenv(
+    "PASSTHROUGH_AUDIO_CODECS", "aac,mp3,opus,vorbis"
+).split(",")
 KEEP_AUDIO_LANGUAGES = os.getenv("KEEP_AUDIO_LANGUAGES", "eng").split(",")
 VIDEO_ENCODER = os.getenv("VIDEO_ENCODER", "libx265")
 AUDIO_ENCODER = os.getenv("AUDIO_ENCODER", "libopus")
