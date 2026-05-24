@@ -7,7 +7,7 @@ on:
     branches:
       - main
     tags:
-      - "*"
+      - "[0-9]+.[0-9]+.[0-9]+"
   release:
     types:
       - published
@@ -28,6 +28,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -44,13 +47,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            # latest on main branch
             type=raw,value=latest,enable={{is_default_branch}}
-
-            # plain semver tags: 1.2.3
             type=semver,pattern={{version}}
-
-            # fallback for any git tag
             type=ref,event=tag
 
       - name: Build and push
@@ -58,5 +56,8 @@ jobs:
         with:
           context: .
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
