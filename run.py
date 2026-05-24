@@ -24,8 +24,9 @@ PIX_FMT = os.getenv("PIX_FMT", "yuv420p10le")
 CRF = os.getenv("CRF", "27")
 VIDEO_SCALE = os.getenv("VIDEO_SCALE", None)
 X_PRESET = os.getenv("X_PRESET", "slow")
-INPUT_VIDEO_EXTS = [".mp4", ".mkv", ".avi", ".mov", ".flv", ".webm"]
-OUTPUT_VIDEO_EXT = ".mkv"
+INPUT_VIDEO_EXTS = os.getenv("INPUT_VIDEO_EXTS", "mp4,mkv,avi,mov,flv,webm").split(",")
+OUTPUT_VIDEO_EXT = os.getenv("OUTPUT_VIDEO_EXT", "mkv").lstrip(".")
+
 
 print("Using settings:")
 print(f"  DATA_DIR: {DATA_DIR}")
@@ -183,7 +184,7 @@ def crawl_media_dir():
     for root, dirs, files in tqdm(os.walk(MEDIA_DIR), desc="Scanning media directory"):
         for file in tqdm(files):
             ext = os.path.splitext(file)[1].lower()
-            if ext in INPUT_VIDEO_EXTS:
+            if ext.lstrip(".") in INPUT_VIDEO_EXTS:
                 path = os.path.join(root, file)
                 paths.append(path)
     return paths
@@ -329,7 +330,7 @@ def should_encode(info):
 
 def build_dest_path(source_path):
     base, _ = os.path.splitext(source_path)
-    return base + "[reenc]." + OUTPUT_VIDEO_EXT.lstrip(".")
+    return base + "[reenc]." + OUTPUT_VIDEO_EXT
 
 
 def encode(source_path, info) -> str | None:
