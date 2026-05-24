@@ -9,9 +9,9 @@ from tqdm import tqdm
 
 DATA_DIR = os.getenv("DATA_DIR", "./data")
 MEDIA_DIR = os.getenv("MEDIA_DIR", "./media")
-TEMP_DIR = os.getenv("TEMP_DIR", "./temp")
+TEMP_DIR = os.getenv("TEMP_DIR", DATA_DIR + "/temp")
 
-ITERATION_INTERVAL_SECONDS = int(os.getenv("ITERATION_INTERVAL_SECONDS", "86400"))
+ITERATION_INTERVAL_SECONDS = int(os.getenv("ITERATION_INTERVAL_SECONDS", "3600"))
 
 PASSTHROUGH_VIDEO_CODECS = os.getenv("PASSTHROUGH_VIDEO_CODECS", "hevc,av1").split(",")
 PASSTHROUGH_AUDIO_CODECS = os.getenv("PASSTHROUGH_AUDIO_CODECS", "aac,opus,mp3").split(
@@ -29,6 +29,8 @@ VIDEO_EXTS = [".mp4", ".mkv", ".avi", ".mov", ".flv", ".webm"]
 print("Using settings:")
 print(f"  DATA_DIR: {DATA_DIR}")
 print(f"  MEDIA_DIR: {MEDIA_DIR}")
+print(f"  TEMP_DIR: {TEMP_DIR}")
+print(f"  ITERATION_INTERVAL_SECONDS: {ITERATION_INTERVAL_SECONDS}")
 print(f"  PASSTHROUGH_VIDEO_CODECS: {PASSTHROUGH_VIDEO_CODECS}")
 print(f"  PASSTHROUGH_AUDIO_CODECS: {PASSTHROUGH_AUDIO_CODECS}")
 print(f"  KEEP_AUDIO_LANGUAGES: {KEEP_AUDIO_LANGUAGES}")
@@ -40,7 +42,13 @@ print(f"  VIDEO_SCALE: {VIDEO_SCALE}")
 print(f"  X_PRESET: {X_PRESET}")
 print(f"  VIDEO_EXTS: {VIDEO_EXTS}")
 
-DATA = {}
+PROBES_FILE = os.path.join(DATA_DIR, "probes.json")
+STATS_FILE = os.path.join(DATA_DIR, "stats.json")
+BLACKLIST_FILE = os.path.join(DATA_DIR, "blacklist.json")
+PROBES = {}
+STATS = {}
+BLACKLIST = {}
+
 STATUS_UNPROBED = "unprobed"
 STATUS_PENDING = "pending"
 STATUS_DONE = "done"
@@ -60,19 +68,50 @@ def check_ffmpeg():
 
 
 def load_data():
-    global DATA
-    if os.path.exists(os.path.join(DATA_DIR, "data.json")):
-        print("Loading data...")
-        with open(os.path.join(DATA_DIR, "data.json"), "r") as f:
-            DATA = json.load(f)
+    global PROBES
+    global STATS
+    global BLACKLIST
+    if os.path.exists(PROBES_FILE):
+        print("Loading probes...")
+        with open(PROBES_FILE, "r") as f:
+            PROBES = json.load(f)
+        print(f"Loaded probes for {len(PROBES)} files")
     else:
-        DATA = {}
+        PROBES = {}
+
+    if os.path.exists(STATS_FILE):
+        print("Loading stats...")
+        with open(STATS_FILE, "r") as f:
+            STATS = json.load(f)
+        print("Loaded stats")
+    else:
+        STATS = {}
+
+    if os.path.exists(BLACKLIST_FILE):
+        print("Loading blacklist...")
+        with open(BLACKLIST_FILE, "r") as f:
+            BLACKLIST = json.load(f)
+        print(f"Loaded blacklist with {len(BLACKLIST)} entries")
+    else:
+        BLACKLIST = {}
 
 
-def save_data():
-    with open(os.path.join(DATA_DIR, "data.json"), "w") as f:
-        json.dump(DATA, f, indent=4)
-    print("Saved!")
+def save_probes():
+    with open(PROBES_FILE, "w") as f:
+        json.dump(PROBES, f, indent=4)
+    print("Saved probes")
+
+
+def save_stats():
+    with open(STATS_FILE, "w") as f:
+        json.dump(STATS, f, indent=4)
+    print("Saved stats")
+
+
+def save_blacklist():
+    with open(BLACKLIST_FILE, "w") as f:
+        json.dump(BLACKLIST, f, indent=4)
+    print("Saved blacklist")
 
 
 def probe(video_path: str):
@@ -100,26 +139,18 @@ def probe(video_path: str):
     except Exception as e:
         print(f"Error probing video: {e}")
 
-    filesize_MB = os.path.getsize(video_path) / (1024 * 1024)
-    return {
-        "ffprobe": ffprobe_out,
-        "filesize_MB": filesize_MB,
-    }
+    return ffprobe_out
 
 
-def scan():
-    # crawl MEDIA_DIR for video files
-    for root, dirs, files in tqdm(os.walk(MEDIA_DIR)):
+def crawl_media_dir():
+    paths = []
+    for root, dirs, files in tqdm(os.walk(MEDIA_DIR), desc="Scanning media directory"):
         for file in tqdm(files):
             ext = os.path.splitext(file)[1].lower()
             if ext in VIDEO_EXTS:
                 path = os.path.join(root, file)
-                if path not in DATA:
-                    DATA[path] = {
-                        "path": path,
-                        "metadata": None,
-                        "status": STATUS_UNPROBED,
-                    }
+                paths.append(path)
+    return paths
 
 
 def get_video_info(ffprobe_data):
@@ -141,7 +172,6 @@ def get_video_info(ffprobe_data):
 
 
 def get_audio_info(ffprobe_data):
-    print(ffprobe_data)
     if not ffprobe_data or "streams" not in ffprobe_data:
         return None
 
@@ -193,7 +223,7 @@ def build_ffmpeg_command(input_path, output_path, info) -> list[str]:
         print("Video can be copied :)")
         vcodec = "copy"
     else:
-        print("Video needs encoding :(")
+        print("Video cannot be passedthrough")
 
     cmd += ["-c:v", vcodec]
     if vcodec != "copy":
@@ -246,36 +276,34 @@ def should_encode(info):
     good = True
     vc = info["video"]["codec"]
     if vc not in PASSTHROUGH_VIDEO_CODECS:
-        print(f"Video codec '{vc}' not in passthrough list, needs encoding")
+        # print(f"Video codec '{vc}' not in passthrough list, needs encoding")
         good = False
     if info["audio_streams"]:
         for audio in info["audio_streams"]:
             ac = audio["codec"]
             if (
                 # wrong codec but right language
-                audio["codec"] not in PASSTHROUGH_AUDIO_CODECS
+                ac not in PASSTHROUGH_AUDIO_CODECS
                 and audio["language"] in KEEP_AUDIO_LANGUAGES
             ):
-                print(f"Audio codec '{ac}' not in passthrough list, needs encoding")
+                # print(f"Audio codec '{ac}' not in passthrough list, needs encoding")
                 good = False
     return not good
 
 
-def maybe_encode(source_path, info):
-    if not should_encode(info):
-        return STATUS_SKIPPED
+def build_dest_path(source_path):
+    base, _ = os.path.splitext(source_path)
+    return base + "[reenc].mkv"
+
+
+def encode(source_path, info) -> str | None:
+    """
+    Returns output path or None on error
+    """
     temp_path = os.path.join(TEMP_DIR, "temp.mkv")
-    dest_path = os.path.splitext(source_path)[0] + "[reenc].mkv"
-    if os.path.exists(dest_path):
-        print(
-            f"Destination file {dest_path} already exists, I guess we encoded this one already?"
-        )
-        return STATUS_SKIPPED
     try:
         cmd = build_ffmpeg_command(source_path, temp_path, info)
-        orig_size_MB = os.path.getsize(source_path) / (1024 * 1024)
-        print("Original size: {:.2f} MB".format(orig_size_MB))
-        print("Running ffmpeg command: " + " ".join(cmd))
+        print("🔥 Running ffmpeg command: " + " ".join(cmd))
         started = datetime.datetime.now()
         print("Started at: " + started.strftime("%Y-%m-%d %H:%M:%S"))
         result = subprocess.run(
@@ -286,83 +314,143 @@ def maybe_encode(source_path, info):
         print("Finished at: " + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         duration = (datetime.datetime.now() - started).total_seconds()
         print(f"Encoding took {duration:.2f} seconds")
-        new_size = os.path.getsize(temp_path) / (1024 * 1024)
-        print("New size: {:.2f} MB".format(new_size))
+        add_encoding_time(duration)
 
-        if new_size >= orig_size_MB:
-            print(
-                "Encoded file is larger than original, skipping replacement and keeping original"
-            )
-            os.remove(temp_path)
-            return STATUS_SKIPPED
-
-        print("You saved: {:.2f} MB!".format(orig_size_MB - new_size))
         if result.returncode != 0:
             print(f"ffmpeg error: {result.stderr.decode()}")
-            return STATUS_ERROR
+            return None
         else:
             print(f"Encoded {source_path} successfully!")
-            # remove ext from original file and suffix
-            shutil.move(temp_path, dest_path)
-            return STATUS_ENCODED
+            return temp_path
     except Exception as e:
         print(f"Error encoding video: {e}")
-        return STATUS_ERROR
+        return None
 
 
 def print_line(msg: str):
     print()
-    print("######################################")
+    print("################################################")
     print(msg)
-    print("######################################")
+    print("################################################")
     print()
 
 
+def build_info(probe):
+    info = {}
+    info["video"] = get_video_info(probe)
+    info["audio_streams"] = get_audio_info(probe)
+    info["subtitle_streams"] = get_subtitle_info(probe)
+    return info
+
+
+def add_to_blacklist(source_path, reason):
+    print_line(f"Adding {source_path} to blacklist: {reason}")
+    BLACKLIST[source_path] = reason
+    save_blacklist()
+
+
+def add_to_savings(savings_mb):
+    if "savings_mb" not in STATS:
+        STATS["savings_mb"] = 0
+    STATS["savings_mb"] += savings_mb
+    save_stats()
+
+
+def add_encoding_time(time_seconds):
+    if "encoding_time_seconds" not in STATS:
+        STATS["encoding_time_seconds"] = 0
+    if "encoded_files" not in STATS:
+        STATS["encoded_files"] = 0
+    STATS["encoded_files"] += 1  # sneak this in while we're here...
+    STATS["encoding_time_seconds"] += time_seconds
+    save_stats()
+
+
+ITERATIONS = 0
+STARTED_AT = datetime.datetime.now()
+
+
 def iteration():
-    print("Starting iteration...")
-    # scan for files
-    scan()
-    # probe unprobed files
-    for path, info in tqdm(DATA.items(), desc="Scanning files"):
-        if info["status"] == STATUS_UNPROBED:
-            print_line(f"Probing {path}...")
-            probe_data = probe(path)
-            if probe_data["ffprobe"]:
-                info = {}
-                info["video"] = get_video_info(probe_data["ffprobe"])
-                info["audio_streams"] = get_audio_info(probe_data["ffprobe"])
-                info["subtitle_streams"] = get_subtitle_info(probe_data["ffprobe"])
-                DATA[path]["info"] = info
-                DATA[path]["status"] = STATUS_PENDING
+    print_line(
+        f"Starting iteration at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+
+    paths = crawl_media_dir()
+
+    # first probe all videos, and save results
+    need_to_save = False
+    for source_path in tqdm(paths, desc="Probing videos"):
+        if source_path not in PROBES:
+            PROBES[source_path] = probe(source_path)
+            need_to_save = True
+    # get rid of deleted files from probes
+    for source_path in tqdm(list(PROBES.keys()), desc="Checking for deleted files"):
+        if source_path not in paths:
+            print(f"{source_path}: no longer exists, removing from probes")
+            del PROBES[source_path]
+            need_to_save = True
+    # save if anything changed
+    if need_to_save:
+        save_probes()
+
+    for source_path in tqdm(paths, desc="Processing videos"):
+        if source_path in BLACKLIST:
+            print(
+                f"Skipping {source_path} because it's blacklisted: {BLACKLIST[source_path]}"
+            )
+            continue
+
+        dest_path = build_dest_path(source_path)
+        if os.path.exists(dest_path):
+            print(
+                f"Skipping {source_path} because destination file already exists at {dest_path}"
+            )
+            continue
+
+        info = build_info(PROBES[source_path])
+        if should_encode(info):
+            print_line(f"Encoding {source_path}...")
+            output = encode(source_path, info)
+            if output:
+                print("Encode was successful!")
+                orig_size_mb = os.path.getsize(source_path) / (1024 * 1024)
+                new_size_mb = os.path.getsize(output) / (1024 * 1024)
+                print(f"Original size: {orig_size_mb:.2f} MB")
+                print(f"New size: {new_size_mb:.2f} MB")
+                if new_size_mb >= orig_size_mb:
+                    print(
+                        "New file is larger than original, skipping move and keeping original"
+                    )
+                    os.remove(output)
+                    add_to_blacklist(
+                        source_path, "encoded file was larger than original"
+                    )
+                    continue
+                savings_mb = orig_size_mb - new_size_mb
+                print(f"You saved {savings_mb:.2f} MB by re-encoding this video!")
+                add_to_savings(savings_mb)
+                shutil.move(output, dest_path)
+                print(f"Moved encoded file to {dest_path}")
             else:
-                DATA[path]["status"] = STATUS_ERROR
-                print(f"Error probing {path}")
-    save_data()
-    # maybe encode
-    for path, info in tqdm(DATA.items(), desc="Processing files"):
-        if info["status"] == STATUS_PENDING:
-            print_line(f"Processing {path}...")
-            outcome = maybe_encode(path, info["info"])
-            print("Outcome: " + outcome)
-            info["status"] = outcome
-    save_data()
+                print(f"Failed to encode {source_path}")
+                add_to_blacklist(source_path, "encoding failed")
+
+    msg = f"Iteration {ITERATIONS} complete!\n\n"
+    msg += f"Uptime: {(datetime.datetime.now() - STARTED_AT).total_seconds() / 3600:.2f} hours\n\n"
+    msg += "Stats: " + json.dumps(STATS, indent=4)
+    print_line(msg)
 
 
 if __name__ == "__main__":
     check_ffmpeg()
     load_data()
+    print(STATS)
+    print(f"Blacklist count: {len(BLACKLIST)}")
     # create temp, data, and media directories if they don't exist
     os.makedirs(TEMP_DIR, exist_ok=True)
     os.makedirs(DATA_DIR, exist_ok=True)
     os.makedirs(MEDIA_DIR, exist_ok=True)
     while True:
-        print_line(
-            "Starting iteration at "
-            + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        )
         iteration()
-        print_line(
-            f"Iteration complete, sleeping for {ITERATION_INTERVAL_SECONDS} seconds..."
-        )
         for _ in tqdm(range(ITERATION_INTERVAL_SECONDS), desc="Sleeping"):
             time.sleep(1)
