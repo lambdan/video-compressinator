@@ -27,6 +27,7 @@ X_PRESET = os.getenv("X_PRESET", "slow")
 INPUT_VIDEO_EXTS = os.getenv("INPUT_VIDEO_EXTS", "mp4,mkv,avi,mov,flv,webm").split(",")
 OUTPUT_VIDEO_EXT = os.getenv("OUTPUT_VIDEO_EXT", "mkv").lstrip(".")
 SLEEP_AFTER_MOVE = int(os.getenv("SLEEP_AFTER_MOVE", "10"))
+AUTO_EMPTY_TRASH_DAYS = int(os.getenv("AUTO_EMPTY_TRASH_DAYS", "7"))
 
 
 print("Using settings:")
@@ -48,6 +49,7 @@ print(f"  X_PRESET: {X_PRESET}")
 print(f"  INPUT_VIDEO_EXTS: {INPUT_VIDEO_EXTS}")
 print(f"  OUTPUT_VIDEO_EXT: {OUTPUT_VIDEO_EXT}")
 print(f"  SLEEP_AFTER_MOVE: {SLEEP_AFTER_MOVE}")
+print(f"  AUTO_EMPTY_TRASH_DAYS: {AUTO_EMPTY_TRASH_DAYS}")
 print()
 
 PROBES_FILE = os.path.join(DATA_DIR, "probes.json")
@@ -459,6 +461,26 @@ def sleep(seconds):
         time.sleep(1)
 
 
+def auto_empty_trash():
+    if AUTO_EMPTY_TRASH_DAYS <= 0:
+        print("Auto-emptying trash is disabled")
+        return
+
+    now = datetime.datetime.now()
+    cutoff = now - datetime.timedelta(days=AUTO_EMPTY_TRASH_DAYS)
+    print_line(f"Auto-emptying trash folder, deleting files older than {cutoff}")
+    for root, dirs, files in os.walk(TRASH_DIR):
+        for file in files:
+            path = os.path.join(root, file)
+            mtime = datetime.datetime.fromtimestamp(os.path.getmtime(path))
+            if mtime < cutoff:
+                print(f"Deleting {path} from trash (last modified {mtime})")
+                try:
+                    os.remove(path)
+                except Exception as e:
+                    print(f"Error deleting {path} from trash: {e}")
+
+
 ITERATIONS = 0
 STARTED_AT = datetime.datetime.now()
 
@@ -467,6 +489,8 @@ def iteration():
     print_line(
         f"Starting iteration at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
+
+    auto_empty_trash()
 
     paths = crawl_media_dir()
 
