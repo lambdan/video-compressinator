@@ -7,26 +7,44 @@ import shutil
 import time
 from tqdm import tqdm
 
+# Stats, blacklist, probes, etc are stored in here
 DATA_DIR = os.getenv("DATA_DIR", "./data")
+# Videos to compress! Will scan and crawl through this...
 MEDIA_DIR = os.getenv("MEDIA_DIR", "./media")
+# While encoding, the output is temporarily stored in here
 TEMP_DIR = os.getenv("TEMP_DIR", "./temp")
+# Trashed files are moved here
 TRASH_DIR = os.getenv("TRASH_DIR", "./trash")
 
+# How long to sleep between iterations
 ITERATION_INTERVAL_SECONDS = int(os.getenv("ITERATION_INTERVAL_SECONDS", "3600"))
+# Video Codecs to allow passthrough (won't be re-encoded). Comma separated.
 PASSTHROUGH_VIDEO_CODECS = os.getenv("PASSTHROUGH_VIDEO_CODECS", "hevc,av1").split(",")
+# Audio Codecs to allow passthrough (won't be re-encoded). Comma separated.
 PASSTHROUGH_AUDIO_CODECS = os.getenv(
     "PASSTHROUGH_AUDIO_CODECS", "aac,mp3,opus,vorbis"
 ).split(",")
+# Audio languages to keep. Comma separated. Undetermined tracks are "und".
 KEEP_AUDIO_LANGUAGES = os.getenv("KEEP_AUDIO_LANGUAGES", "eng").split(",")
+# ffmpeg video encoder to use when re-encoding is needed
 VIDEO_ENCODER = os.getenv("VIDEO_ENCODER", "libx265")
+# ffmpeg audio encoder to use when re-encoding is needed
 AUDIO_ENCODER = os.getenv("AUDIO_ENCODER", "libopus")
+# ffmpeg pixel format. "" to disable/use auto.
 PIX_FMT = os.getenv("PIX_FMT", "yuv420p10le")
+# ffmpeg CRF value for video encoding (quality, lower is better quality but bigger file). "" to use auto.
 CRF = os.getenv("CRF", "27")
-VIDEO_SCALE = os.getenv("VIDEO_SCALE", None)
+# ffmpeg video scale filter, e.g. "1280:-2" to scale width to 1280 and adjust height to maintain aspect ratio. "" to disable.
+VIDEO_SCALE = os.getenv("VIDEO_SCALE", "")
+# ffmpeg preset to use for x264/x265 encoding (e.g. ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow). "" to disable/use auto.
 X_PRESET = os.getenv("X_PRESET", "slow")
+# Input video extensions to consider for encoding. Comma separated.
 INPUT_VIDEO_EXTS = os.getenv("INPUT_VIDEO_EXTS", "mp4,mkv,avi,mov,flv,webm").split(",")
+# Output video extension to use for encoded files
 OUTPUT_VIDEO_EXT = os.getenv("OUTPUT_VIDEO_EXT", "mkv").lstrip(".")
+# Seconds to sleep after moving re-encoded file (to let media servers notice the change)
 SLEEP_AFTER_MOVE = int(os.getenv("SLEEP_AFTER_MOVE", "10"))
+# Automatically empty the trash folder after this many days
 AUTO_EMPTY_TRASH_DAYS = int(os.getenv("AUTO_EMPTY_TRASH_DAYS", "7"))
 
 
