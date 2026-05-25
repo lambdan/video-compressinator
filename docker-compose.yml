@@ -1,6 +1,6 @@
 services:
   compressinator:
-    image: ghcr.io/lambdan/video-compressinator:latest
+    image: ghcr.io/lambdan/video-compressinator:0.2
     volumes:
       - /mnt/user/appdata/compressinator:/data
       - /tmp/compressinator:/temp
@@ -12,16 +12,16 @@ services:
       - TEMP_DIR=/temp
       - TRASH_DIR=/trash
       #- ITERATION_INTERVAL_SECONDS=3600
-      - PASSTHROUGH_VIDEO_CODECS=hevc,av1
-      - PASSTHROUGH_AUDIO_CODECS=aac,mp3,opus,vorbis
+      #- PASSTHROUGH_VIDEO_CODECS=hevc,av1
+      #- PASSTHROUGH_AUDIO_CODECS=aac,mp3,opus,vorbis
       #- KEEP_AUDIO_LANGUAGES=eng,swe,und
-      - VIDEO_ENCODER=libx265
-      - AUDIO_ENCODER=libopus
-      - PIX_FMT=yuv420p10le
-      - CRF=27
+      #- VIDEO_ENCODER=libx265
+      #- AUDIO_ENCODER=libopus
+      #- PIX_FMT=yuv420p10le
+      #- CRF=27
       #- VIDEO_SCALE=-1:720
-      - X_PRESET=slow
-      - INPUT_VIDEO_EXTS=mp4,mkv,avi,mov,flv,webm,m4v
-      - OUTPUT_VIDEO_EXT=mkv
-      - SLEEP_AFTER_MOVE=10
-      - AUTO_EMPTY_TRASH_DAYS=7
+      #- X_PRESET=slow
+      #- INPUT_VIDEO_EXTS=mp4,mkv,avi,mov,flv,webm,m4v
+      #- OUTPUT_VIDEO_EXT=mkv
+      #- SLEEP_AFTER_MOVE=10
+      #- AUTO_EMPTY_TRASH_DAYS=7
