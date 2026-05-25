@@ -10,6 +10,7 @@ from tqdm import tqdm
 DATA_DIR = os.getenv("DATA_DIR", "./data")
 MEDIA_DIR = os.getenv("MEDIA_DIR", "./media")
 TEMP_DIR = os.getenv("TEMP_DIR", "./temp")
+TRASH_DIR = os.getenv("RECYCLE_DIR", "./trash")
 
 ITERATION_INTERVAL_SECONDS = int(os.getenv("ITERATION_INTERVAL_SECONDS", "3600"))
 PASSTHROUGH_VIDEO_CODECS = os.getenv("PASSTHROUGH_VIDEO_CODECS", "hevc,av1").split(",")
@@ -25,13 +26,15 @@ VIDEO_SCALE = os.getenv("VIDEO_SCALE", None)
 X_PRESET = os.getenv("X_PRESET", "slow")
 INPUT_VIDEO_EXTS = os.getenv("INPUT_VIDEO_EXTS", "mp4,mkv,avi,mov,flv,webm").split(",")
 OUTPUT_VIDEO_EXT = os.getenv("OUTPUT_VIDEO_EXT", "mkv").lstrip(".")
-DELETE_ORIGINAL_AFTER_DAYS = float(os.getenv("DELETE_ORIGINAL_AFTER_DAYS", "7"))
+SLEEP_AFTER_MOVE = int(os.getenv("SLEEP_AFTER_MOVE", "10"))
 
 
 print("Using settings:")
 print(f"  DATA_DIR: {DATA_DIR}")
 print(f"  MEDIA_DIR: {MEDIA_DIR}")
 print(f"  TEMP_DIR: {TEMP_DIR}")
+print(f"  TRASH_DIR: {TRASH_DIR}")
+
 print(f"  ITERATION_INTERVAL_SECONDS: {ITERATION_INTERVAL_SECONDS}")
 print(f"  PASSTHROUGH_VIDEO_CODECS: {PASSTHROUGH_VIDEO_CODECS}")
 print(f"  PASSTHROUGH_AUDIO_CODECS: {PASSTHROUGH_AUDIO_CODECS}")
@@ -44,7 +47,7 @@ print(f"  VIDEO_SCALE: {VIDEO_SCALE}")
 print(f"  X_PRESET: {X_PRESET}")
 print(f"  INPUT_VIDEO_EXTS: {INPUT_VIDEO_EXTS}")
 print(f"  OUTPUT_VIDEO_EXT: {OUTPUT_VIDEO_EXT}")
-print(f"  DELETE_ORIGINAL_AFTER_DAYS: {DELETE_ORIGINAL_AFTER_DAYS}")
+print(f"  SLEEP_AFTER_MOVE: {SLEEP_AFTER_MOVE}")
 print()
 
 PROBES_FILE = os.path.join(DATA_DIR, "probes.json")
@@ -424,25 +427,36 @@ def add_encoding_time(time_seconds):
     save_stats()
 
 
-def maybe_cleanup(source_path, dest_path) -> str:
-    if DELETE_ORIGINAL_AFTER_DAYS <= 0:
-        # if the setting is 0 or negative, we never delete original files
-        return "nope, deleting original is disabled"
+def trash(path: str):
+    try:
+        if not os.path.exists(path):
+            print(f"File {path} does not exist, cannot trash")
+            return False
 
-    if not os.path.exists(source_path) or not os.path.exists(dest_path):
-        print("Source or destination file does not exist, avoiding cleanup")
-        return "nope, source or destination file missing"
+        if TRASH_DIR == "":
+            print("TRASH_DIR not set, deleting file permanently")
+            os.remove(path)
+            return True
+        else:
+            # add timestamp to filename
+            trash_path = os.path.join(
+                TRASH_DIR,
+                os.path.basename(path)
+                + "."
+                + datetime.datetime.now().strftime("%Y%m%d%H%M%S"),
+            )
+            print(f"Moving {path} to trash: {trash_path}")
+            shutil.move(path, trash_path)
+            print("Trashed!")
+            return True
+    except Exception as e:
+        print("Error when trashing", path, e)
+        return False
 
-    # if destination file has existed for n days, we assume the user is happy with it
-    dest_age_days = (
-        datetime.datetime.now()
-        - datetime.datetime.fromtimestamp(os.path.getmtime(dest_path))
-    ).total_seconds() / (3600 * 24)
-    if dest_age_days >= DELETE_ORIGINAL_AFTER_DAYS:
-        os.remove(source_path)
-        return "yep! The new version is old enough. Deleted the original 🗑️"
-    else:
-        return f"nope, the new version is not old enough ({dest_age_days:.2f}/{DELETE_ORIGINAL_AFTER_DAYS} days)"
+
+def sleep(seconds):
+    for _ in tqdm(range(seconds), desc="Sleeping"):
+        time.sleep(1)
 
 
 ITERATIONS = 0
@@ -480,14 +494,10 @@ def iteration():
             continue
 
         dest_path = build_dest_path(source_path)
-        print(f"Destination would be:\n  {dest_path}")
+        print(f"Destination is:\n  {dest_path}")
         if os.path.exists(dest_path):
             print("Destination already exists")
-            print(
-                "Can we delete the original?\n  "
-                + maybe_cleanup(source_path, dest_path),
-            )
-            print("Skipped because destination exists")
+            trash(source_path)
             continue
 
         info = build_info(PROBES[source_path])
@@ -506,7 +516,7 @@ def iteration():
                     print(
                         "New file is larger than original, skipping move and keeping original"
                     )
-                    os.remove(output)
+                    trash(output)
                     add_to_blacklist(
                         source_path, "encoded file was larger than original"
                     )
@@ -516,7 +526,10 @@ def iteration():
                 add_to_savings(savings_mb)
                 shutil.move(output, dest_path)
                 print(f"Moved encoded file to {dest_path}")
-                print("Maybe cleanup?", maybe_cleanup(source_path, dest_path))
+                if SLEEP_AFTER_MOVE > 0:
+                    print("Sleeping a bit to let Jellyfin, Plex, etc. notice...")
+                    sleep(SLEEP_AFTER_MOVE)
+                trash(source_path)
             else:
                 print(f"Failed to encode {source_path}")
                 add_to_blacklist(source_path, "encoding failed")
@@ -542,7 +555,7 @@ if __name__ == "__main__":
     os.makedirs(TEMP_DIR, exist_ok=True)
     os.makedirs(DATA_DIR, exist_ok=True)
     os.makedirs(MEDIA_DIR, exist_ok=True)
+    os.makedirs(TRASH_DIR, exist_ok=True)
     while True:
         iteration()
-        for _ in tqdm(range(ITERATION_INTERVAL_SECONDS), desc="Sleeping"):
-            time.sleep(1)
+        sleep(ITERATION_INTERVAL_SECONDS)
