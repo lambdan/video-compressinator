@@ -544,6 +544,10 @@ def iteration():
 
 
 if __name__ == "__main__":
+    os.makedirs(TEMP_DIR, exist_ok=True)
+    os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs(MEDIA_DIR, exist_ok=True)
+    os.makedirs(TRASH_DIR, exist_ok=True)
     test_write_permission(DATA_DIR)
     test_write_permission(MEDIA_DIR)
     test_write_permission(TEMP_DIR)
@@ -553,10 +557,6 @@ if __name__ == "__main__":
     print("Stats", STATS)
     print(f"Blacklist count: {len(BLACKLIST)}")
     # create temp, data, and media directories if they don't exist
-    os.makedirs(TEMP_DIR, exist_ok=True)
-    os.makedirs(DATA_DIR, exist_ok=True)
-    os.makedirs(MEDIA_DIR, exist_ok=True)
-    os.makedirs(TRASH_DIR, exist_ok=True)
     while True:
         iteration()
         sleep(ITERATION_INTERVAL_SECONDS)
