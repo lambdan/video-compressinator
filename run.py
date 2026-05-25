@@ -440,9 +440,9 @@ def maybe_cleanup(source_path, dest_path) -> str:
     ).total_seconds() / (3600 * 24)
     if dest_age_days >= DELETE_ORIGINAL_AFTER_DAYS:
         os.remove(source_path)
-        return f"yep! The new version is {dest_age_days:.2f} days old. Deleted the original 🗑️"
+        return "yep! The new version is old enough. Deleted the original 🗑️"
     else:
-        return f"nope, the new version is only {dest_age_days:.2f} days old"
+        return f"nope, the new version is not old enough ({dest_age_days:.2f}/{DELETE_ORIGINAL_AFTER_DAYS} days)"
 
 
 ITERATIONS = 0
@@ -516,6 +516,7 @@ def iteration():
                 add_to_savings(savings_mb)
                 shutil.move(output, dest_path)
                 print(f"Moved encoded file to {dest_path}")
+                print("Maybe cleanup?", maybe_cleanup(source_path, dest_path))
             else:
                 print(f"Failed to encode {source_path}")
                 add_to_blacklist(source_path, "encoding failed")
