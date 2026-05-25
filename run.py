@@ -547,6 +547,7 @@ if __name__ == "__main__":
     test_write_permission(DATA_DIR)
     test_write_permission(MEDIA_DIR)
     test_write_permission(TEMP_DIR)
+    test_write_permission(TRASH_DIR)
     check_ffmpeg()
     load_data()
     print("Stats", STATS)
