@@ -10,7 +10,7 @@ from tqdm import tqdm
 DATA_DIR = os.getenv("DATA_DIR", "./data")
 MEDIA_DIR = os.getenv("MEDIA_DIR", "./media")
 TEMP_DIR = os.getenv("TEMP_DIR", "./temp")
-TRASH_DIR = os.getenv("RECYCLE_DIR", "./trash")
+TRASH_DIR = os.getenv("TRASH_DIR", "./trash")
 
 ITERATION_INTERVAL_SECONDS = int(os.getenv("ITERATION_INTERVAL_SECONDS", "3600"))
 PASSTHROUGH_VIDEO_CODECS = os.getenv("PASSTHROUGH_VIDEO_CODECS", "hevc,av1").split(",")
