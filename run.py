@@ -467,6 +467,8 @@ def trash(path: str):
             )
             print(f"Moving {path} to trash: {trash_path}")
             shutil.move(path, trash_path)
+            # update mtime to now so auto-empty doesnt delete it immediately
+            os.utime(trash_path, None)
             print("Trashed!")
             return True
     except Exception as e:
