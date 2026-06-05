@@ -324,15 +324,13 @@ def build_ffmpeg_command(input_path, output_path, info) -> list[str]:
             )
             if lang in KEEP_AUDIO_LANGUAGES:
                 print(
-                    f"Keeping audio stream {i} with language '{lang}' and codec '{stream['codec']}'"
+                    f"Keeping audio stream {i}: {lang} ({stream['codec']} -> {acodec})"
                 )
                 cmd += ["-map", f"0:a:{i}"]
                 cmd += [f"-c:a:{i}", acodec]
                 any_audio = True
             else:
-                print(
-                    f"Skipping audio stream {i} with language '{lang}' and codec '{stream['codec']}'"
-                )
+                print(f"Skipping audio stream {i}: {lang} ('{stream['codec']}')")
         if not any_audio:
             print(
                 "Kept none of the audio streams... keeping the first one as a fallback"
