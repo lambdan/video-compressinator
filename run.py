@@ -330,7 +330,7 @@ def build_ffmpeg_command(input_path, output_path, info) -> list[str]:
                 cmd += [f"-c:a:{i}", acodec]
                 any_audio = True
             else:
-                print(f"Skipping audio stream {i}: {lang} ('{stream['codec']}')")
+                print(f"Skipping audio stream {i}: {lang} ({stream['codec']})")
         if not any_audio:
             print(
                 "Kept none of the audio streams... keeping the first one as a fallback"
