@@ -1,7 +1,7 @@
 FROM python:3.11-slim
 
-COPY --from=mwader/static-ffmpeg:7.1 /ffmpeg /ffmpeg
-COPY --from=mwader/static-ffmpeg:7.1 /ffprobe /ffprobe
+COPY --from=mwader/static-ffmpeg:8.1.2 /ffmpeg /ffmpeg
+COPY --from=mwader/static-ffmpeg:8.1.2 /ffprobe /ffprobe
 ENV FFMPEG_PATH=/ffmpeg
 ENV FFPROBE_PATH=/ffprobe
 
