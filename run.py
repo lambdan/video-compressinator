@@ -312,6 +312,9 @@ def build_ffmpeg_command(input_path, output_path, info) -> list[str]:
         if X_PRESET:
             cmd += ["-preset", X_PRESET]
 
+    if vcodec == "libx265":
+        cmd += ["-tag:v", "hvc1"]  # for better compatibility with Apple devices
+
     # audio
     # check what languages we want to keep, and if the codec is in passthrough list
     audio_streams = info["audio_streams"]
